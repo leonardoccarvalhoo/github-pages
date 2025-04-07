@@ -1,0 +1,143 @@
+import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { LineChart, Line, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import * as XLSX from "xlsx";
+
+export default function FinanceTracker() {
+  const [entries, setEntries] = useState([]);
+  const [form, setForm] = useState({ data: "", tipo: "", descricao: "", categoria: "", valor: "" });
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const addEntry = () => {
+    if (!form.data || !form.tipo || !form.descricao || !form.valor) return;
+    setEntries([...entries, { ...form, valor: parseFloat(form.valor) }]);
+    setForm({ data: "", tipo: "", descricao: "", categoria: "", valor: "" });
+  };
+
+  const exportToExcel = () => {
+    const worksheet = XLSX.utils.json_to_sheet(entries);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Lançamentos");
+    XLSX.writeFile(workbook, "controle_financeiro.xlsx");
+  };
+
+  const saldoData = entries.reduce((acc, curr) => {
+    const date = curr.data;
+    const last = acc.length > 0 ? acc[acc.length - 1].saldo : 0;
+    const saldo = curr.tipo === "Ganho" ? last + curr.valor : last - curr.valor;
+    acc.push({ data: date, saldo });
+    return acc;
+  }, []);
+
+  const gastosPorCategoria = entries
+    .filter((e) => e.tipo === "Gasto")
+    .reduce((acc, curr) => {
+      acc[curr.categoria] = (acc[curr.categoria] || 0) + curr.valor;
+      return acc;
+    }, {});
+
+  const pieData = Object.entries(gastosPorCategoria).map(([categoria, valor]) => ({ name: categoria, value: valor }));
+
+  const cores = ["#8884d8", "#82ca9d", "#ffc658", "#ff7f50", "#8dd1e1"];
+
+  return (
+    <div className="p-4 max-w-5xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">Controle Financeiro</h1>
+
+      <Card className="mb-6">
+        <CardContent className="space-y-4 pt-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <Label>Data</Label>
+              <Input type="date" name="data" value={form.data} onChange={handleChange} />
+            </div>
+            <div>
+              <Label>Tipo</Label>
+              <select name="tipo" value={form.tipo} onChange={handleChange} className="w-full border rounded p-2">
+                <option value="">Selecione</option>
+                <option value="Ganho">Ganho</option>
+                <option value="Gasto">Gasto</option>
+              </select>
+            </div>
+            <div>
+              <Label>Descrição</Label>
+              <Input name="descricao" value={form.descricao} onChange={handleChange} />
+            </div>
+            <div>
+              <Label>Categoria</Label>
+              <Input name="categoria" value={form.categoria} onChange={handleChange} />
+            </div>
+            <div>
+              <Label>Valor (R$)</Label>
+              <Input type="number" name="valor" value={form.valor} onChange={handleChange} />
+            </div>
+          </div>
+          <Button onClick={addEntry}>Adicionar</Button>
+          <Button variant="outline" onClick={exportToExcel}>Exportar para Excel</Button>
+        </CardContent>
+      </Card>
+
+      <div className="grid md:grid-cols-2 gap-6 mb-6">
+        <Card>
+          <CardContent className="pt-4 h-72">
+            <h2 className="font-bold mb-2">Saldo ao Longo do Tempo</h2>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={saldoData}>
+                <XAxis dataKey="data" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="saldo" stroke="#8884d8" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4 h-72">
+            <h2 className="font-bold mb-2">Gastos por Categoria</h2>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie dataKey="value" data={pieData} label>
+                  {pieData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={cores[index % cores.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Data</TableHead>
+            <TableHead>Tipo</TableHead>
+            <TableHead>Descrição</TableHead>
+            <TableHead>Categoria</TableHead>
+            <TableHead>Valor (R$)</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {entries.map((entry, index) => (
+            <TableRow key={index}>
+              <TableCell>{entry.data}</TableCell>
+              <TableCell>{entry.tipo}</TableCell>
+              <TableCell>{entry.descricao}</TableCell>
+              <TableCell>{entry.categoria}</TableCell>
+              <TableCell>{entry.valor.toFixed(2)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
